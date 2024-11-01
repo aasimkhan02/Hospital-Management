@@ -8,21 +8,29 @@ const Medication = () => {
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [medicationName, setMedicationName] = useState('');
-    const [formSuggestions, setFormSuggestions] = useState([]); // Add this line
     const [dosage, setDosage] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [frequency, setFrequency] = useState('');
     const [time, setTime] = useState('');
-    const [showFormSuggestions, setShowFormSuggestions] = useState(false); // Add this line
     const [notes, setNotes] = useState('');
-    const [medicationTasks, setMedicationTasks] = useState([]); // State to hold medication tasks
-    const [currentUserId, setCurrentUserId] = useState(null); // State to hold the current user ID
-    const [medicationDetails, setMedicationDetails] = useState(null); // State to hold fetched medication details
+    const [medicationTasks, setMedicationTasks] = useState([]);
     const [editingTask, setEditingTask] = useState(null);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [medicationDetails, setMedicationDetails] = useState(null); // Added state for medication details
+    
+    const getToken = () => localStorage.getItem('token');
+    const getUsername = () => localStorage.getItem('username');
 
-    const getCurrentUserId = () => {
-        return localStorage.getItem('userId'); // Example using local storage
+    const resetForm = () => {
+        setMedicationName('');
+        setDosage('');
+        setStartDate('');
+        setEndDate('');
+        setFrequency('');
+        setTime('');
+        setNotes('');
+        setEditingTask(null);
     };
 
     const handleSectionClick = (section) => {
@@ -33,12 +41,47 @@ const Medication = () => {
         setExpandTodo(true);
     };
 
+    const loadMedicationTasks = () => {
+        const tasks = localStorage.getItem('medicationTasks');
+        return tasks ? JSON.parse(tasks) : [];
+    };
+
+    // Save medication tasks to localStorage
+    const saveMedicationTasks = (tasks) => {
+        localStorage.setItem('medicationTasks', JSON.stringify(tasks));
+    };
+
+    // Use useEffect to load tasks when the component mounts
+    useEffect(() => {
+        const tasks = loadMedicationTasks();
+        setMedicationTasks(tasks);
+        // Request notification permission when the component mounts
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    const scheduleNotification = (task) => {
+        const { time, medication } = task;
+        const notificationTime = new Date();
+        const [hours, minutes] = time.split(':');
+        notificationTime.setHours(hours, minutes, 0, 0); // Set to selected time
+
+        const delay = notificationTime.getTime() - Date.now();
+        if (delay > 0) {
+            const notificationId = setTimeout(() => {
+                new Notification(`Time to take your medication: ${medication}`);
+            }, delay);
+            return notificationId; // Return the ID to clear if necessary
+        }
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         setExpandTodo(false);
-        
+
         const newTask = {
-            user: currentUserId,
+            id: new Date().getTime(), // Unique ID based on timestamp
             medication: medicationName,
             dosage,
             start_date: startDate,
@@ -47,58 +90,19 @@ const Medication = () => {
             time,
             notes,
         };
-    
-        if (editingTask) {
-            // Update the existing task
-            setMedicationTasks((prevTasks) => 
-                prevTasks.map(task => (task.id === editingTask.id ? { ...newTask, id: editingTask.id } : task))
-            );
-            setEditingTask(null); // Reset editing task
-        } else {
-            // Add new task
-            setMedicationTasks((prevTasks) => [...prevTasks, newTask]);
-        }
-    
-        // Clear the form fields
-        setMedicationName('');
-        setDosage('');
-        setStartDate('');
-        setEndDate('');
-        setFrequency('');
-        setTime('');
-        setNotes('');
-    };
-    
-    
-    const handleDeleteTask = (taskId) => {
-        // Filter out the task that needs to be deleted
-        setMedicationTasks((prevTasks) => prevTasks.filter(task => task.id !== taskId));
-    };
 
-    const fetchMedicationTasks = async () => {
-        try {
-            const response = await fetch(`http://localhost:8000/api/medication-tasks/?user=${currentUserId}`, {
-                headers: {
-                    // Include authentication token if necessary
-                },
-            });
-    
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-    
-            const data = await response.json();
-            setMedicationTasks(data);
-        } catch (error) {
-            console.error('Error fetching medication tasks:', error);
-        }
+        const updatedTasks = editingTask
+            ? medicationTasks.map(task => (task.id === editingTask.id ? newTask : task))
+            : [...medicationTasks, newTask];
+
+        setMedicationTasks(updatedTasks);
+        saveMedicationTasks(updatedTasks); // Save to localStorage
+
+        const notificationId = scheduleNotification(newTask); // Schedule notification for the new task
+        // You might want to store the notificationId in the task object if you want to clear it later
+
+        resetForm();
     };
-    
-    useEffect(() => {
-        const userId = getCurrentUserId();
-        setCurrentUserId(userId);
-        fetchMedicationTasks();
-    }, []);
 
     const handleSearch = async (e) => {
         const query = e.target.value;
@@ -158,7 +162,6 @@ const Medication = () => {
         setShowSuggestions(false); 
     };
     
-
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && suggestions.length > 0 && suggestions[0] !== "No results found") {
             setSearchQuery(suggestions[0]);
@@ -174,26 +177,6 @@ const Medication = () => {
         }
     }, [searchQuery]);
 
-    const fetchMedicationDetails = async () => {
-        try {
-            const response = await fetch(`http://localhost:8000/api/medications/search/?q=${searchQuery}`);
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            if (data.length > 0) {
-                setMedicationDetails(data[0]); 
-            } else {
-                setMedicationDetails(null); 
-            }
-        } catch (error) {
-            console.error('Error fetching medication details:', error);
-        }
-    };
-
-
     const handleEditTask = (task) => {
         setMedicationName(task.medication);
         setDosage(task.dosage);
@@ -202,14 +185,23 @@ const Medication = () => {
         setFrequency(task.frequency);
         setTime(task.time);
         setNotes(task.notes);
-        setEditingTask(task); 
-        setExpandTodo(true); 
+        setEditingTask(task);
+        setExpandTodo(true);
+    };
+
+    // Handle task deletion (if needed)
+    const handleDeleteTask = (taskId) => {
+        const updatedTasks = medicationTasks.filter(task => task.id !== taskId);
+        setMedicationTasks(updatedTasks);
+        saveMedicationTasks(updatedTasks); // Update localStorage
+        // Here, clear the associated notification if needed using the stored notification ID
     };
     
     
 
     return (
         <div className='Medication'>
+            {errorMessage && <div className="error-message">{errorMessage}</div>} {/* Error message display */}
             <div className="Medication-search-bar">
                 <div className="background"></div>
                 <div className="search-bar">
@@ -288,130 +280,121 @@ const Medication = () => {
                 </button>
                 <div className={`todo ${expandTodo ? 'expanded' : ''}`}>
                 {!expandTodo ? (
-    <div className="active-todo">
-        <table className="todo-table">
-        <thead>
-            <tr>
-                <th className='Name'>Name</th>
-                <th className='Dosage'>Dosage</th>
-                <th className='Start-time'>Start Time</th>
-                <th className='End-time'>End Time</th>
-                <th className='Frequency'>Frequency</th>
-                <th className='Time'>Time</th>
-                <th className='Notes'>Notes</th>
-                <th className='Actions'>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {medicationTasks.map((task) => (
-                <tr key={task.id}>
-                    <td>{task.medication}</td>
-                    <td>{task.dosage}</td>
-                    <td>{task.start_date}</td>
-                    <td>{task.end_date}</td>
-                    <td>{task.frequency}</td>
-                    <td>{task.time}</td>
-                    <td>{task.notes}</td>
-                    <td>
-                        <button onClick={() => handleEditTask(task)}>Edit</button>
-                        <button onClick={() => handleDeleteTask(task.id)}>Delete</button>
-                    </td>
-                </tr>
-            ))}
-        </tbody>
+                    <div className="active-todo">
+                        <table className="todo-table">
+                        <thead>
+                            <tr>
+                                <th className='Name'>Name</th>
+                                <th className='Dosage'>Dosage</th>
+                                <th className='Start-time'>Start Time</th>
+                                <th className='End-time'>End Time</th>
+                                <th className='Frequency'>Frequency</th>
+                                <th className='Time'>Time</th>
+                                <th className='Notes'>Notes</th>
+                                <th className='Actions'>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {medicationTasks.map((task) => (
+                                <tr key={task.id}>
+                                    <td>{task.medication}</td>
+                                    <td>{task.dosage}</td>
+                                    <td>{task.start_date}</td>
+                                    <td>{task.end_date}</td>
+                                    <td>{task.frequency}</td>
+                                    <td>{task.time}</td>
+                                    <td>{task.notes}</td>
+                                    <td>
+                                        <button onClick={() => handleEditTask(task)}>Edit</button>
+                                        <button onClick={() => handleDeleteTask(task.id)}>Delete</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
 
-    </table>
-                                </div>
-                                ) : (
-                                    <form 
-    className={`medication-form ${expandTodo ? 'visible' : ''}`}
-    onSubmit={handleSubmit}
->
-    <li>
-        <p>Medication Name</p>
-        <input
-            type="text"
-            placeholder="Enter medication name"
-            value={medicationName}
-            onChange={(e) => setMedicationName(e.target.value)}
-            onClick={() => setShowFormSuggestions(true)}
-            required
-        />
-        {showFormSuggestions && formSuggestions.length > 0 && (
-            <ul className="suggestions">
-                {formSuggestions.map((suggestion, index) => (
-                    <li key={index} onClick={() => handleFormSuggestionClick(suggestion)}>
-                        {suggestion}
+                    </table>
+                                                </div>
+                                                ) : (
+                                                    <form 
+                    className={`medication-form ${expandTodo ? 'visible' : ''}`}
+                    onSubmit={handleSubmit}
+                >
+                    <li>
+                        <p>Medication Name</p>
+                        <input
+                            type="text"
+                            placeholder="Enter medication name"
+                            value={medicationName}
+                            onChange={(e) => setMedicationName(e.target.value)}
+                            onClick={() => setShowFormSuggestions(true)}
+                            required
+                        />
                     </li>
-                ))}
-            </ul>
-        )}
-    </li>
-    <li>
-        <p>Dosage</p>
-        <input 
-            type="text" 
-            placeholder="Enter dosage"
-            value={dosage}
-            onChange={(e) => setDosage(e.target.value)}
-            required
-        />
-    </li>
-    <li className='timeclass'>
-        <li>
-            <p>Start Time</p>
-            <input 
-                type="date" 
-                placeholder="Select start date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-            />
-        </li>
-        <li>
-            <p>End Time</p>
-            <input 
-                type="date" 
-                placeholder="Select end date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-            />
-        </li>
-    </li>
-    <li>
-        <p>Frequency</p>
-        <input 
-            type="number" 
-            placeholder="Enter frequency (times per day)"
-            value={frequency}
-            onChange={(e) => setFrequency(e.target.value)}
-            required
-        />
-    </li>
-    <li>
-        <p>Time</p>
-        <input 
-            type="time" 
-            placeholder="Select time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            required
-        />
-    </li>
-    <li>
-        <p>Notes</p>
-        <input 
-            type="text" 
-            placeholder="Additional notes (optional)"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-        />
-    </li>
-    <li className='btn'>
-        <button type="submit">Submit</button>
-    </li>
-</form>
+                    <li>
+                        <p>Dosage</p>
+                        <input 
+                            type="text" 
+                            placeholder="Enter dosage"
+                            value={dosage}
+                            onChange={(e) => setDosage(e.target.value)}
+                            required
+                        />
+                    </li>
+                    <li className='timeclass'>
+                        <li>
+                            <p>Start Time</p>
+                            <input 
+                                type="date" 
+                                placeholder="Select start date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                required
+                            />
+                        </li>
+                        <li>
+                            <p>End Time</p>
+                            <input 
+                                type="date" 
+                                placeholder="Select end date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                required
+                            />
+                        </li>
+                    </li>
+                    <li>
+                        <p>Frequency</p>
+                        <input 
+                            type="number" 
+                            placeholder="Enter frequency (times per day)"
+                            value={frequency}
+                            onChange={(e) => setFrequency(e.target.value)}
+                            required
+                        />
+                    </li>
+                    <li>
+                        <p>Time</p>
+                        <input 
+                            type="time" 
+                            placeholder="Select time"
+                            value={time}
+                            onChange={(e) => setTime(e.target.value)}
+                            required
+                        />
+                    </li>
+                    <li>
+                        <p>Notes</p>
+                        <input 
+                            type="text" 
+                            placeholder="Additional notes (optional)"
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                        />
+                    </li>
+                    <li className='btn'>
+                        <button type="submit">Submit</button>
+                    </li>
+                </form>
                     )}
                 </div>
             </div>

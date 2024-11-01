@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Medication, PersonalInformation, MedicationTask, UserMedicalInformation, LabRecord
+from .models import Medication, PersonalInformation, MedicationToDoTask, UserMedicalInformation, LabRecord
 
 
 class MedicationDetailSerializer(serializers.ModelSerializer):
@@ -121,10 +121,5 @@ class LabRecordSerializer(serializers.ModelSerializer):
 
 class MedicationTaskSerializer(serializers.ModelSerializer):
     class Meta:
-        model = MedicationTask
-        fields = ['id', 'medication', 'dosage', 'start_date', 'end_date', 'frequency', 'time', 'notes']  # Specify fields explicitly
-
-    def validate(self, data):
-        if data.get('end_date') and data['end_date'] < data.get('start_date'):
-            raise serializers.ValidationError("End date must be after start date.")
-        return data
+        model = MedicationToDoTask
+        fields = '__all__'

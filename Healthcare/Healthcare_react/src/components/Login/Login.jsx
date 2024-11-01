@@ -26,7 +26,8 @@ const Login = ({ onSwitchToSignup, onSuccess, onClose }) => {
                 localStorage.setItem('access_token', data.access);
                 localStorage.setItem('refresh_token', data.refresh);
                 localStorage.setItem('isAuthenticated', 'true'); // Optional, for UI state
-    
+                localStorage.setItem('username', data.username); // Store username
+
                 onSuccess(); // Notify parent component of successful login
                 onClose();   // Close the login overlay
             } else {
@@ -36,7 +37,6 @@ const Login = ({ onSwitchToSignup, onSuccess, onClose }) => {
             setError('An error occurred');
         }
     };
-    
 
     return (
         <div className='Login'>

@@ -4,7 +4,9 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from .models import Medication, PersonalInformation, MedicationTask, UserMedicalInformation, LabRecord
+from rest_framework.exceptions import ValidationError
+from .tasks import send_medication_notification
+from .models import Medication, PersonalInformation, MedicationToDoTask, UserMedicalInformation, LabRecord
 from .serializers import (
     MedicationSerializer, 
     MedicationDetailSerializer, 
@@ -18,7 +20,12 @@ from .serializers import (
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.utils import timezone  # For timezone-aware datetime
+from datetime import timedelta 
+import logging
 
+
+logger = logging.getLogger(__name__)
     
 class MedicationViewSet(viewsets.ModelViewSet):
     queryset = Medication.objects.all()
@@ -92,7 +99,6 @@ class RegisterView(generics.CreateAPIView):
         )
 
 
-
 class LoginView(generics.GenericAPIView):
     serializer_class = UserSerializer
 
@@ -100,13 +106,17 @@ class LoginView(generics.GenericAPIView):
         email = request.data.get('email')
         password = request.data.get('password')
         user = authenticate(username=email, password=password)
+
         if user:
             refresh = RefreshToken.for_user(user)
             return Response({
                 'refresh': str(refresh),
-                'access': str(refresh.access_token)
+                'access': str(refresh.access_token),
+                'username': user.username  # Include the username in the response
             }, status=status.HTTP_200_OK)
+        
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class PersonalInformationViewSet(viewsets.ModelViewSet):
     queryset = PersonalInformation.objects.all()
@@ -139,19 +149,48 @@ class UserMedicalInformationViewSet(viewsets.ModelViewSet):
         serializer.save()  # No need to pass user again since it's already linked
 
 
-class MedicationTaskListCreate(generics.ListCreateAPIView):
-    queryset = MedicationTask.objects.all()
+class MedicationToDoTaskCreate(generics.ListCreateAPIView):
+    queryset = MedicationToDoTask.objects.all()
     serializer_class = MedicationTaskSerializer
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        return MedicationTask.objects.filter(user=self.request.user)  # Filter tasks by user
+    def list(self, request, *args, **kwargs):
+        username = request.query_params.get('user')
+        if not username:
+            return Response({"detail": "User parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        try:
+            user = User.objects.get(username=username)
+            tasks = MedicationToDoTask.objects.filter(user=user)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        serializer = self.get_serializer(tasks, many=True)
+        return Response(serializer.data)
 
+    def create(self, request, *args, **kwargs):
+        username = request.data.get('user')
+        if not username:
+            return Response({"detail": "User parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data
+        data['user'] = user
+        serializer = self.get_serializer(data=data)
+
+        if serializer.is_valid(raise_exception=True):
+            task = serializer.save()
+
+            # Schedule a notification for the task (if needed)
+            # notification_time = task.start_date + timedelta(hours=task.time.hour, minutes=task.time.minute)
+            # send_medication_notification.apply_async((task.id,), eta=notification_time)
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LabRecordViewSet(viewsets.ModelViewSet):

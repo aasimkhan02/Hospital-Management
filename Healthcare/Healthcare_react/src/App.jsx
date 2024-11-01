@@ -8,6 +8,7 @@ import Login from './components/Login/Login';
 import Signup from './components/Signup/Signup';
 import Profile from './pages/Profile/Profile';
 
+
 const App = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoginVisible, setLoginVisible] = useState(false);

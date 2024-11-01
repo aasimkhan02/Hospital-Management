@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'Healthcare_app',
     'rest_framework_simplejwt',
-
+    'education',
 ]
 
 MIDDLEWARE = [
@@ -89,8 +89,14 @@ DATABASES = {
         'PASSWORD': 'Aasim2005',  
         'HOST': 'localhost',
         'PORT': '3306',
+    },
+    'sqlite': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',  # Ensure the correct path for your SQLite file
     }
 }
+DATABASE_ROUTERS = ['Healthcare.routers.EducationRouter']
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

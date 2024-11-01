@@ -25,14 +25,14 @@ class Medication(models.Model):
 
 class PersonalInformation(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='personal_info')
-    first_name = models.CharField(max_length=30)
-    last_name = models.CharField(max_length=30)
-    gender = models.CharField(max_length=10)
+    first_name = models.CharField(max_length=30, blank=True, null=True)
+    last_name = models.CharField(max_length=30, blank=True, null=True)
+    gender = models.CharField(max_length=10, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
-    phone_number = models.CharField(max_length=15)
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
-    city = models.CharField(max_length=30)
-    state = models.CharField(max_length=30)
+    city = models.CharField(max_length=30, blank=True, null=True)
+    state = models.CharField(max_length=30, blank=True, null=True)
     date_of_birth = models.DateField(blank=True, null=True)
     age = models.IntegerField(blank=True, null=True)
     
@@ -66,15 +66,17 @@ class LabRecord(models.Model):
     date = models.DateField()
     doctor = models.CharField(max_length=100)
 
-class MedicationTask(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)  # Link to the user
-    medication = models.ForeignKey(Medication, on_delete=models.CASCADE)  # Link to the medication
-    dosage = models.CharField(max_length=50, default='0')  # Set a default value
+class MedicationToDoTask(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    medication = models.CharField(max_length=255, blank=True, null=True)
+    dosage = models.CharField(max_length=255, blank=True, null=True)
     start_date = models.DateField(blank=True, null=True)
     end_date = models.DateField(blank=True, null=True)
-    frequency = models.IntegerField(blank=True, null=True)  # Frequency of the medication (times per day)
-    time = models.TimeField(blank=True, null=True)  # Specific time for taking medication
-    notes = models.TextField(blank=True, null=True)  # Optional notes
+    frequency = models.CharField(max_length=255, blank=True, null=True)
+    time = models.TimeField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(blank=True, null=True)  # Remove auto_now_add=True temporarily
+    updated_at = models.DateTimeField(auto_now=True, blank=True, null=True)
 
     def __str__(self):
-        return f"{self.medication.medicine_name} - {self.dosage} for {self.user.username}"
+        return self.medication

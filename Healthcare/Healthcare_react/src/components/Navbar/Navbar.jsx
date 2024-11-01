@@ -46,14 +46,17 @@ const Navbar = ({ toggleLogin, isAuthenticated, onLogout }) => {
                     <span>Services</span>
                     {dropdownOpen && (
                         <ul className="dropdown-menu">
-                            <li><Link to="/disease">Disease</Link></li>
+                            <li>
+                                <a href="https://multiplediseaseprediction-uc89fhqvet96epogcvotqv.streamlit.app/" target="_blank" rel="noopener noreferrer">
+                                    Disease
+                                </a>
+                            </li>
                             <li><Link to="/medication">Medication</Link></li>
-                            <li><Link to="/service3">Education</Link></li>
+                            <li><a href="http://localhost:8000/education/">Education</a></li>
                         </ul>
                     )}
                 </li>
-                <li><Link to="/appointments">Appointments</Link></li>
-                <li><Link to="/doctors">Doctors</Link></li>
+                
                 <li><Link to="/contact">Contact</Link></li>
                 {isAuthenticated ? (
                     <li 
